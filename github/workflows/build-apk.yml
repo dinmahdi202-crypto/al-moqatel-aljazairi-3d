@@ -1,0 +1,61 @@
+
+name: Build Algerian Fighter APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get game source
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare game
+        run: |
+          mkdir -p www
+          if [ -f index.html ]; then
+            cp index.html www/index.html
+          else
+            FILE=$(find . -maxdepth 1 -type f -iname '*.html' | head -n 1)
+            if [ -z "$FILE" ]; then
+              echo "No HTML game file found"
+              exit 1
+            fi
+            cp "$FILE" www/index.html
+          fi
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+
+      - name: Configure Capacitor
+        run: |
+          npx cap init "Al-Moqatel Aljazairi 3D" com.dinmahdi.moqatel3d --web-dir www
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: al-moqatel-aljazairi-3d-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
