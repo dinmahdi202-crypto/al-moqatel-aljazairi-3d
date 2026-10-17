@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>المقاتل الجزائري 3D</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101827;color:#fff;font-family:system-ui,sans-serif;touch-action:none}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;text-shadow:0 2px 3px #000}
+.panel{background:#101827d9;border:1px solid #ffffff45;border-radius:12px;padding:8px 11px;font-weight:800;font-size:14px}
+#bar{height:7px;width:110px;background:#4c2429;border-radius:8px;margin-top:5px;overflow:hidden}#fill{height:100%;width:100%;background:#36d780}
+#controls{position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 16px;direction:ltr;pointer-events:none}
+.pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:4px;pointer-events:auto}
+button{font:900 19px system-ui;color:#fff;background:#101827c9;border:1px solid #ffffff80;box-shadow:0 3px 0 #0005;touch-action:none;user-select:none}
+.ctrl{border-radius:13px}.pad button{border-radius:13px}#up{grid-column:2}#left{grid-column:1;grid-row:2}#down{grid-column:2;grid-row:3}#right{grid-column:3;grid-row:2}
+.actions{display:flex;gap:7px;align-items:flex-end;pointer-events:auto}.action{width:70px;height:70px;border-radius:50%;font-size:13px;background:#b7372ddd}#weapon{background:#3c628c}#fire{width:82px;height:82px;background:#e04a26}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#07111dc9;padding:20px;text-align:center}
+.box{max-width:420px;background:#172337;border:1px solid #ffffff55;border-radius:22px;padding:24px;box-shadow:0 20px 60px #0008}
+h1{font-size:clamp(25px,7vw,40px);color:#ffd166;margin:0 0 8px}p{line-height:1.7;color:#e5edf8}.main{background:#e9a23b;color:#171717;border:0;border-radius:14px;padding:13px 24px;font-size:18px}
+.small{font-size:12px;color:#b9c7d9}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div class="panel">❤️ <span id="hp">100</span><div id="bar"><div id="fill"></div></div></div><div class="panel">🎯 النقاط: <span id="score">0</span><br>👾 الأعداء: <span id="enemies">0</span></div><div class="panel">3D | المهمة <span id="wave">1</span></div></div>
+<div id="controls">
+<div class="pad"><button id="up">▲</button><button id="left">◀</button><button id="down">▼</button><button id="right">▶</button></div>
+<div class="actions"><button class="action" id="dash">⚡<br>اندفاع</button><button class="action" id="weapon">🎒<br>السلاح</button><button id="fire">إطلاق<br>🔥</button></div>
+</div>
+<div id="overlay"><div class="box"><div style="font-size:52px">🪖</div><h1 id="title">المقاتل الجزائري 3D</h1><p id="msg">مغامرة حرب ثلاثية الأبعاد! تحرّك في ساحة المعركة، واجه الأعداء واجمع النقاط.</p><button class="main" id="start">ابدأ المهمة ▶</button><p class="small">تحتاج اتصالاً بالإنترنت لتحميل محرك الرسومات ثلاثية الأبعاد عند أول تشغيل.</p></div></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=> {
+const canvas=document.querySelector('#game'),overlay=document.querySelector('#overlay');
+if(!window.THREE){document.querySelector('#msg').textContent='ما قدرناش نحمل محرك 3D. تأكد من الإنترنت وافتح الملف في Chrome.';return;}
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8dc5e8);scene.fog=new THREE.Fog(0x8dc5e8,30,100);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,150);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+scene.add(new THREE.HemisphereLight(0xdaf0ff,0x66543a,2));
+const sun=new THREE.DirectionalLight(0xffefce,2.3);sun.position.set(-15,25,10);sun.castShadow=true;scene.add(sun);
+const mat=(color,roughness=.9)=>new THREE.MeshStandardMaterial({color,roughness});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(180,180),mat(0x8e875f));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(100,50,0x686e4e,0x777752);grid.position.y=.015;scene.add(grid);
+// road and scattered terrain props
+const road=new THREE.Mesh(new THREE.PlaneGeometry(8,130),mat(0x57554b));road.rotation.x=-Math.PI/2;road.position.set(0,.025,-20);scene.add(road);
+function box(x,y,z,sx,sy,sz,color){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat(color));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
+for(let i=0;i<28;i++){
+ let x=(Math.random()-.5)*48,z=-i*3+15;
+ if(Math.abs(x)<5)x+=Math.sign(x||1)*7;
+ if(i%3===0){box(x,.7,z,2.2,1.4,2.2,0x80613d);box(x,.8,z,2.28,.12,2.28,0xa17b4e)}
+ else if(i%3===1){box(x,1.6,z,2.8,3.2,2.8,0x777a73);for(let k=0;k<2;k++)box(x+(k-.5)*.9,1.8,z+1.42,.45,.65,.08,0x303c43)}
+ else {const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1+Math.random()),mat(0x7b7968));rock.position.set(x,.45,z);rock.scale.y=.55;rock.castShadow=true;scene.add(rock)}
+}
+for(let i=0;i<12;i++){let x=(Math.random()-.5)*65,z=-Math.random()*75;const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.24,1.5,7),mat(0x5b4932));trunk.position.set(x,.75,z);scene.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(1.1,2.8,7),mat(0x486947));crown.position.set(x,2.7,z);crown.castShadow=true;scene.add(crown)}
+function soldier(isEnemy=false){
+ const root=new THREE.Group();scene.add(root);
+ const skin=mat(isEnemy?0x9a6b4d:0xc58e68), shirt=mat(isEnemy?0x59413a:0x354b37), pants=mat(isEnemy?0x39383a:0x555844), vestmat=mat(isEnemy?0x292f2a:0x29362c), bootmat=mat(0x242522), metal=mat(0x20272a,.55);
+ function ellipsoid(name,geo,material,pos,scale){const m=new THREE.Mesh(geo,material);m.name=name;m.position.set(...pos);if(scale)m.scale.set(...scale);m.castShadow=true;m.receiveShadow=true;root.add(m);return m}
+ // Human-shaped torso, waist and neck
+ ellipsoid('torso',new THREE.CapsuleGeometry(.32,.52,4,8),shirt,[0,1.25,0],[1,.95,.7]);
+ ellipsoid('waist',new THREE.CylinderGeometry(.22,.28,.28,10),pants,[0,.82,0],[1,1,.8]);
+ ellipsoid('neck',new THREE.CylinderGeometry(.095,.11,.16,10),skin,[0,1.69,0]);
+ ellipsoid('head',new THREE.SphereGeometry(.235,16,12),skin,[0,1.91,-.015],[.9,1.08,.9]);
+ // face details, looking forward (-Z)
+ ellipsoid('nose',new THREE.SphereGeometry(.055,8,6),skin,[0,1.9,-.215],[.65,.8,.7]);
+ ellipsoid('helmet',new THREE.SphereGeometry(.285,16,12,0,Math.PI*2,0,Math.PI*.58),mat(isEnemy?0x303338:0x596a42),[0,2.04,0],[1.08,.92,1.02]);
+ ellipsoid('helmet brim',new THREE.CylinderGeometry(.27,.29,.055,16),mat(isEnemy?0x25292b:0x3c4d30),[0,1.99,0]);
+ // Tactical vest and small front pouches
+ ellipsoid('vest',new THREE.BoxGeometry(.57,.55,.39),vestmat,[0,1.27,-.015]);
+ for(const x of [-.18,0,.18])ellipsoid('pouch',new THREE.BoxGeometry(.12,.16,.09),mat(0x41483a),[x,1.12,-.225]);
+ // Separate pivot groups make arms and legs look articulated
+ const limbs=[];
+ function limb(name,x,y,z,length,radius,material,rotationX=0){const pivot=new THREE.Group();pivot.position.set(x,y,z);root.add(pivot);const mesh=new THREE.Mesh(new THREE.CapsuleGeometry(radius,Math.max(.08,length-2*radius),4,8),material);mesh.position.y=-length/2;mesh.castShadow=true;mesh.receiveShadow=true;pivot.add(mesh);pivot.rotation.x=rotationX;limbs.push({pivot,name});return pivot}
+ // Arms hang from shoulders; hands are visible below sleeves
+ const leftArm=limb('leftArm',-.39,1.48,0,.56,.105,shirt,-.12);
+ const rightArm=limb('rightArm',.39,1.48,0,.56,.105,shirt,-.12);
+ function hand(parent){const h=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),skin);h.position.y=-.57;h.castShadow=true;parent.add(h)}hand(leftArm);hand(rightArm);
+ const leftLeg=limb('leftLeg',-.16,.78,0,.67,.125,pants,0),rightLeg=limb('rightLeg',.16,.78,0,.67,.125,pants,0);
+ for(const [x,leg] of [[-.16,leftLeg],[.16,rightLeg]]){const boot=new THREE.Mesh(new THREE.BoxGeometry(.22,.13,.34),bootmat);boot.position.set(0,-.68,-.055);boot.castShadow=true;leg.add(boot)}
+ // Rifle and backpack sit on the back until the weapon button is pressed
+ const pack=ellipsoid('backpack',new THREE.BoxGeometry(.34,.43,.18),mat(0x394632),[0,1.25,.27]);
+ const packTop=ellipsoid('pack top',new THREE.BoxGeometry(.27,.12,.19),mat(0x4a593c),[0,1.51,.27]);
+ const gun=new THREE.Group();root.add(gun);
+ const stock=new THREE.Mesh(new THREE.BoxGeometry(.11,.12,.28),mat(0x493d2d));stock.position.z=.16;gun.add(stock);
+ const receiver=new THREE.Mesh(new THREE.BoxGeometry(.14,.14,.4),metal);receiver.position.z=-.03;gun.add(receiver);
+ const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.48,8),metal);barrel.rotation.x=Math.PI/2;barrel.position.set(0,.015,-.42);gun.add(barrel);
+ const magazine=new THREE.Mesh(new THREE.BoxGeometry(.09,.2,.12),mat(0x252a27));magazine.position.set(0,-.14,-.03);gun.add(magazine);
+ gun.position.set(.28,1.55,.24);gun.rotation.set(.15,0,-.48);
+ root.userData={body:root.getObjectByName('torso'),helmet:root.getObjectByName('helmet'),gun,arm:rightArm,leftArm,rightArm,leftLeg,rightLeg,limbs,pack,packTop};return root;
+}
+const player=soldier(false);player.position.set(0,0,5);
+let weaponEquipped=false;
+function setWeaponEquipped(on){weaponEquipped=on;const gun=player.userData.gun;if(on){gun.position.set(.24,1.42,-.42);gun.rotation.set(0,0,0);player.userData.rightArm.rotation.x=-1.05;player.userData.leftArm.rotation.x=-.82;document.querySelector('#weapon').innerHTML='🔄<br>إرجاع';document.querySelector('#fire').style.opacity='1';}else{gun.position.set(.28,1.55,.24);gun.rotation.set(.15,0,-.48);player.userData.rightArm.rotation.x=-.12;player.userData.leftArm.rotation.x=-.12;document.querySelector('#weapon').innerHTML='🎒<br>السلاح';document.querySelector('#fire').style.opacity='.58';} }
+setWeaponEquipped(false);
+const enemies=[],shots=[],enemyShots=[],effects=[];let running=false,score=0,hp=100,wave=1,spawn=0,fireHeld=false,dashTime=0,last=0;
+const keys={};function spawnEnemy(){if(enemies.length>=12)return;const e=soldier(true);e.position.set((Math.random()-.5)*24,0,-8-Math.random()*45);e.userData.hp=2+Math.floor(wave/3);e.userData.cool=1+Math.random()*2;enemies.push(e)}
+function projectile(pos,dir,enemy=false){const mesh=new THREE.Mesh(new THREE.SphereGeometry(enemy?.12:.09,8,8),mat(enemy?0xff4b32:0xffd56a, .3));mesh.position.copy(pos);scene.add(mesh);(enemy?enemyShots:shots).push({mesh,dir:dir.clone(),life:3,enemy})}
+function shoot(){
+ if(!running||!weaponEquipped)return;
+ const origin=player.position.clone().add(new THREE.Vector3(0,1.4,0));
+ // Auto-aim at the nearest enemy within range.
+ let target=null,best=32;
+ for(const e of enemies){const d=e.position.distanceTo(player.position);if(d<best){best=d;target=e}}
+ let dir;
+ if(target){
+   const aim=target.position.clone().add(new THREE.Vector3(0,1.05,0));
+   dir=aim.sub(origin).normalize();
+   player.rotation.y=Math.atan2(dir.x,-dir.z);
+ }else{
+   dir=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion).normalize();
+ }
+ origin.add(dir.clone().multiplyScalar(.8));projectile(origin,dir);
+}
+function burst(pos,color=0xff9a46){for(let i=0;i<7;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.08,5,5),mat(color));m.position.copy(pos);scene.add(m);effects.push({mesh:m,vel:new THREE.Vector3((Math.random()-.5)*4,Math.random()*3,(Math.random()-.5)*4),life:.5+Math.random()*.4})}}
+function update(dt){
+ if(!running)return;
+ let dx=(keys.right?1:0)-(keys.left?1:0),dz=(keys.down?1:0)-(keys.up?1:0);const sp=dashTime>0?12:6.3;dashTime=Math.max(0,dashTime-dt);
+ const len=Math.hypot(dx,dz)||1;player.position.x+=dx/len*sp*dt;player.position.z+=dz/len*sp*dt;player.position.x=THREE.MathUtils.clamp(player.position.x,-22,22);player.position.z=THREE.MathUtils.clamp(player.position.z,-45,18);
+ if(dx||dz)player.rotation.y=Math.atan2(dx,-dz);
+ const moving=!!(dx||dz);const stride=moving?Math.sin(performance.now()*.012)*.48:0;player.userData.leftLeg.rotation.x=stride;player.userData.rightLeg.rotation.x=-stride;if(!weaponEquipped){player.userData.leftArm.rotation.x=-.12-stride*.55;player.userData.rightArm.rotation.x=-.12+stride*.55;}
+ if(fireHeld&&weaponEquipped&&Math.random()<dt*5.5)shoot();
+ spawn-=dt;if(spawn<=0){spawnEnemy();spawn=Math.max(.5,2-wave*.08)}
+ for(const e of enemies){const to=player.position.clone().sub(e.position);const dist=to.length();to.y=0;to.normalize();if(dist>3.3)e.position.addScaledVector(to,e.userData.speed||(.9+wave*.08)*dt);else if(Math.random()<dt*1.5){hp-=5}
+ e.lookAt(player.position.x,0,player.position.z);e.userData.cool-=dt;if(e.userData.cool<=0&&dist<24){const origin=e.position.clone().add(new THREE.Vector3(0,1.4,0));const dir=player.position.clone().add(new THREE.Vector3(0,1,0)).sub(origin).normalize();projectile(origin,dir,true);e.userData.cool=1.8+Math.random()*1.5}
+ }
+ for(const b of [...shots,...enemyShots]){b.mesh.position.addScaledVector(b.dir,(b.enemy?12:25)*dt);b.life-=dt;
+ if(!b.enemy){for(const e of enemies){if(b.life>0&&b.mesh.position.distanceTo(e.position.clone().add(new THREE.Vector3(0,1,0)))<1.05){b.life=0;e.userData.hp--;burst(b.mesh.position);if(e.userData.hp<=0){score+=10;burst(e.position.clone().add(new THREE.Vector3(0,1,0)),0xff573b);scene.remove(e);enemies.splice(enemies.indexOf(e),1);if(score>=wave*60){wave++;hp=Math.min(100,hp+12)}}break}}}
+ else if(b.mesh.position.distanceTo(player.position.clone().add(new THREE.Vector3(0,1,0)))<.8){b.life=0;hp-=8}
+ }
+ for(const arr of [shots,enemyShots])for(let i=arr.length-1;i>=0;i--){const b=arr[i];if(b.life<=0){scene.remove(b.mesh);arr.splice(i,1)}}
+ for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.mesh.position.addScaledVector(e.vel,dt);e.life-=dt;if(e.life<=0){scene.remove(e.mesh);effects.splice(i,1)}}
+ // camera follows behind player
+ // Stable camera behind the player: movement direction no longer makes the camera orbit.
+ const target=new THREE.Vector3(player.position.x,player.position.y+6.5,player.position.z+10);camera.position.lerp(target,Math.min(1,dt*4));camera.lookAt(player.position.x,player.position.y+1,player.position.z-4);
+ document.querySelector('#hp').textContent=Math.max(0,Math.ceil(hp));document.querySelector('#fill').style.width=Math.max(0,hp)+'%';document.querySelector('#score').textContent=score;document.querySelector('#enemies').textContent=enemies.length;document.querySelector('#wave').textContent=wave;
+ if(hp<=0){running=false;document.querySelector('#title').textContent='انتهت المهمة 💥';document.querySelector('#msg').innerHTML='جمعت '+score+' نقطة. جرّب مرة أخرى واهزم المزيد من الأعداء!';document.querySelector('#start').textContent='إعادة اللعب ↻';overlay.style.display='flex'}
+}
+function animate(t){requestAnimationFrame(animate);const dt=Math.min(.04,(t-last)/1000||0);last=t;update(dt);renderer.render(scene,camera)}
+function reset(){setWeaponEquipped(false);for(const e of enemies)scene.remove(e);enemies.length=0;for(const b of [...shots,...enemyShots])scene.remove(b.mesh);shots.length=0;enemyShots.length=0;score=0;hp=100;wave=1;spawn=0;player.position.set(0,0,5);player.rotation.set(0,0,0);for(let i=0;i<5;i++)spawnEnemy()}
+function bind(id,k){const el=document.getElementById(id);const on=e=>{e.preventDefault();keys[k]=true};const off=e=>{e.preventDefault();keys[k]=false};el.addEventListener('pointerdown',on);['pointerup','pointercancel','pointerleave'].forEach(v=>el.addEventListener(v,off))}
+[['up','up'],['down','down'],['left','left'],['right','right']].forEach(a=>bind(...a));
+document.querySelector('#weapon').addEventListener('pointerdown',e=>{e.preventDefault();setWeaponEquipped(!weaponEquipped);});
+document.querySelector('#fire').addEventListener('pointerdown',e=>{e.preventDefault();if(!weaponEquipped){document.querySelector('#weapon').animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],180);return;}fireHeld=true;shoot()});['pointerup','pointercancel','pointerleave'].forEach(v=>document.querySelector('#fire').addEventListener(v,()=>fireHeld=false));
+document.querySelector('#dash').addEventListener('pointerdown',e=>{e.preventDefault();dashTime=.65;burst(player.position.clone().add(new THREE.Vector3(0,1,0)),0xffd166)});
+document.querySelector('#start').addEventListener('click',()=>{reset();running=true;overlay.style.display='none';last=performance.now()});
+addEventListener('keydown',e=>{const m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',' ':'fire'};if(m[e.key]){if(m[e.key]==='fire'){if(weaponEquipped){fireHeld=true;shoot()}}else keys[m[e.key]]=true}});
+addEventListener('keyup',e=>{const m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',' ':'fire'};if(m[e.key]){if(m[e.key]==='fire')fireHeld=false;else keys[m[e.key]]=false}});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+camera.position.set(0,7,15);camera.lookAt(0,0,0);for(let i=0;i<5;i++)spawnEnemy();animate(0);
+})();
+</script>
+</body></html>
