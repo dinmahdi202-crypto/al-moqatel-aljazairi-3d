@@ -26,9 +26,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Prepare game
         run: |
           mkdir -p www
@@ -47,7 +44,7 @@ jobs:
 
       - name: Configure Capacitor
         run: |
-          npx cap init "المقاتل الجزائري 3D" com.dinmahdi.moqatel3d --web-dir www
+          npx cap init "Al-Moqatel Aljazairi 3D" com.dinmahdi.moqatel3d --web-dir www
           npx cap add android
           npx cap sync android
 
